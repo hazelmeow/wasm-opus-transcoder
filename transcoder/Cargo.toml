@@ -1,0 +1,21 @@
+[package]
+name = "transcoder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+symphonia = { version = "0.5.4", features = ["all-codecs", "all-formats"] }
+rubato = "0.15.0"
+ogg = "0.9.1"
+thiserror = "1.0.59"
+byteorder = "1.5.0"
+opus = { git = "https://github.com/hazelmeow/opus-rs.git", branch = "unsafe-libopus" }
+image = { version = "0.25.1", default-features = false, features = ["jpeg", "png"] }
+sha2 = "0.10.8"
+wasm-bindgen = { version = "0.2.84", optional = true }
+serde = { version = "1.0.201", optional = true, features = ["derive"] }
+serde_bytes = { version = "0.11.14", optional = true }
+
+[features]
+wasm = ["dep:wasm-bindgen"]
+serde = ["dep:serde", "dep:serde_bytes"]
