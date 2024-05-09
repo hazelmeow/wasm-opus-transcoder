@@ -34,11 +34,11 @@ jobs:
         with:
           version: 9
       - name: Set up Node
-        working-directory: ./transcoder-demo
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
+          cache-dependency-path: ./transcoder-demo/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: ./transcoder-demo
         run: pnpm install
