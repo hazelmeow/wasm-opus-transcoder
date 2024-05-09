@@ -1,0 +1,55 @@
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches: ['main']
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build transcoder-wasm
+        working-directory: ./transcoder-wasm
+        run: wasm-pack build --release --target web
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        working-directory: ./transcoder-demo
+        run: pnpm install
+      - name: Build
+        working-directory: ./transcoder-demo
+        run: npm run build
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './transcoder-demo/dist'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
