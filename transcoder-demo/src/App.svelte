@@ -120,9 +120,11 @@
 					{metadata.album ?? ""}
 				</div>
 				<div>
-					{Math.floor(metadata.duration / 60)}:{Math.floor(
-						metadata.duration,
-					) % 60}
+					{Math.floor(metadata.duration / 60)}:{(
+						Math.floor(metadata.duration) % 60
+					)
+						.toString()
+						.padStart(2, "0")}
 				</div>
 			</div>
 		</div>
