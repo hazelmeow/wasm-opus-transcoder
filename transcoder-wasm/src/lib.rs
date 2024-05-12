@@ -80,8 +80,8 @@ impl From<transcoder::Progress> for Message {
     fn from(value: transcoder::Progress) -> Self {
         match value {
             transcoder::Progress::Loading => Self::Loading,
-            transcoder::Progress::Resampling(v) => Self::Resampling(v),
-            transcoder::Progress::Encoding(v) => Self::Encoding(v),
+            transcoder::Progress::Resampling(v) => Self::Resampling(v as f32 / 100.0),
+            transcoder::Progress::Encoding(v) => Self::Encoding(v as f32 / 100.0),
         }
     }
 }

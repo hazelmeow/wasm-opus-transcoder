@@ -28,8 +28,8 @@ pub enum TranscodeError {
 #[derive(Debug)]
 pub enum Progress {
     Loading,
-    Resampling(f32),
-    Encoding(f32),
+    Resampling(u8),
+    Encoding(u8),
 }
 
 #[derive(Debug)]
@@ -327,7 +327,7 @@ fn resample_oneshot(
     spec: SignalSpec,
     on_progress: impl Fn(Progress),
 ) -> Result<Vec<Vec<f32>>, Box<dyn Error>> {
-    on_progress(Progress::Resampling(0.0));
+    on_progress(Progress::Resampling(0));
 
     let mut resampler = {
         let params = SincInterpolationParameters {
@@ -349,7 +349,7 @@ fn resample_oneshot(
     // resample
     let resampled = resampler.process(&source, None)?;
 
-    on_progress(Progress::Resampling(1.0));
+    on_progress(Progress::Resampling(100));
 
     Ok(resampled)
 }
@@ -359,7 +359,8 @@ fn resample_chunks(
     spec: SignalSpec,
     on_progress: impl Fn(Progress),
 ) -> Result<Vec<Vec<f32>>, Box<dyn Error>> {
-    on_progress(Progress::Resampling(0.0));
+    on_progress(Progress::Resampling(0));
+    let mut progress = 0;
 
     let mut resampler = {
         let params = SincInterpolationParameters {
@@ -404,12 +405,15 @@ fn resample_chunks(
 
         pos += samples_needed;
 
-        let progress = if pos >= source[0].len() {
-            1.0
+        let new_progress = if pos >= source[0].len() {
+            100
         } else {
-            pos as f32 / source[0].len() as f32
+            round_progress(pos as f32 / source[0].len() as f32)
         };
-        on_progress(Progress::Resampling(progress));
+        if new_progress != progress {
+            progress = new_progress;
+            on_progress(Progress::Resampling(progress));
+        }
     }
 
     Ok(resampled)
@@ -421,7 +425,8 @@ fn encode(
     num_channels: usize,
     on_progress: impl Fn(Progress),
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    on_progress(Progress::Encoding(0.0));
+    on_progress(Progress::Encoding(0));
+    let mut progress = 0;
 
     const SAMPLE_RATE: usize = 48000; // we resample to 48k first if necessary
     const FRAME_TIME_MS: usize = 20;
@@ -524,9 +529,11 @@ fn encode(
 
         packet_writer.write_packet(frame_buf, serial, end_info, granule_position as u64)?;
 
-        on_progress(Progress::Encoding(
-            (frame_idx + 1) as f32 / (num_frames + 1) as f32,
-        ));
+        let new_progress = round_progress((frame_idx + 1) as f32 / (num_frames + 1) as f32);
+        if new_progress != progress {
+            progress = new_progress;
+            on_progress(Progress::Encoding(progress));
+        }
     }
 
     // write final frame
@@ -565,7 +572,11 @@ fn encode(
         )?;
     }
 
-    on_progress(Progress::Encoding(1.0));
+    on_progress(Progress::Encoding(100));
 
     Ok(output)
+}
+
+fn round_progress(p: f32) -> u8 {
+    (p * 100.0).trunc() as u8
 }
