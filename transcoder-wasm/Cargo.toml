@@ -25,5 +25,5 @@ serde = { version = "1.0.201", features = ["derive"] }
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
 [profile.release]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
+opt-level = 3
+lto = true
