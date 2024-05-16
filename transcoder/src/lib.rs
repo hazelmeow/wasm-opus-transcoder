@@ -65,6 +65,7 @@ pub struct TranscodeOutput {
     pub data: Vec<u8>,
     pub metadata: Metadata,
     pub art: Option<TrackArt>,
+    pub audio_hash: String,
 }
 
 pub fn transcode(
@@ -73,6 +74,8 @@ pub fn transcode(
     on_progress: impl Fn(Progress),
 ) -> Result<TranscodeOutput, Box<dyn Error>> {
     on_progress(Progress::Loading);
+
+    let audio_hash = hash_bytes(&bytes);
 
     let cursor = Cursor::new(bytes);
     let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
@@ -190,6 +193,7 @@ pub fn transcode(
         data,
         metadata,
         art,
+        audio_hash,
     })
 }
 
