@@ -58,6 +58,7 @@ pub struct TranscodeOutput {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
     pub data: Vec<u8>,
     pub metadata: Metadata,
+    pub art: Option<TrackArt>,
 }
 
 pub fn transcode(
@@ -120,8 +121,7 @@ pub fn transcode(
     )?;
     decoder.reset();
 
-    // TODO: read metadata
-    let metadata = read_metadata(spec, &mut probe_result);
+    let (metadata, art) = read_metadata(spec, &mut probe_result);
 
     // read packets
     let mut source = vec![Vec::new(); spec.channels.count()];
@@ -180,7 +180,11 @@ pub fn transcode(
 
     let data = encode(samples, spec.channels.count(), &on_progress)?;
 
-    Ok(TranscodeOutput { data, metadata })
+    Ok(TranscodeOutput {
+        data,
+        metadata,
+        art,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -205,10 +209,9 @@ pub struct Metadata {
     pub artist: Option<String>,
     pub track_number: Option<String>,
     pub album_artist: Option<String>,
-    pub art: Option<TrackArt>,
 }
 
-fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> Metadata {
+fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> (Metadata, Option<TrackArt>) {
     let num_frames = probe_result
         .format
         .default_track()
@@ -224,8 +227,9 @@ fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> Metadata {
         artist: None,
         track_number: None,
         album_artist: None,
-        art: None,
     };
+
+    let mut art = None;
 
     if let Some(rev) = get_metadata_revision(probe_result) {
         let tags = rev.tags();
@@ -256,13 +260,13 @@ fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> Metadata {
 
         // just use the first visual found
         if let Some(v) = visuals.first() {
-            if let Some(art) = track_art_from_visual(v) {
-                md.art = Some(art);
+            if let Some(a) = track_art_from_visual(v) {
+                art = Some(a);
             }
         }
     }
 
-    md
+    (md, art)
 }
 
 fn get_metadata_revision(probe_result: &mut ProbeResult) -> Option<MetadataRevision> {
