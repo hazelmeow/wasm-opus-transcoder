@@ -17,6 +17,12 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+pub fn hash_bytes(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
 #[derive(Debug, Error)]
 pub enum TranscodeError {
     #[error("no track")]
@@ -308,9 +314,7 @@ fn track_art_from_visual(visual: &Visual) -> Option<TrackArt> {
             encoder_2048.encode_image(&resized_2048).unwrap();
 
             // compute hash of input
-            let mut hasher = Sha256::new();
-            hasher.update(&visual.data);
-            let hash = format!("{:x}", hasher.finalize());
+            let hash = hash_bytes(&visual.data);
 
             return Some(TrackArt {
                 data_512,

@@ -96,6 +96,10 @@ impl TranscoderWasm {
         Self {}
     }
 
+    pub fn hash_bytes(&self, bytes: &[u8]) -> String {
+        transcoder::hash_bytes(bytes)
+    }
+
     pub fn transcode(&self, bytes: Vec<u8>, message_callback: &js_sys::Function) {
         console_log!("transcoding {:?} bytes", bytes.len());
 
