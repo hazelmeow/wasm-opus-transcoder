@@ -1,10 +1,13 @@
 # Wasm Opus Transcoder
 
+This library transcodes audio files to OGG Opus in the browser using WASM.
+It also provides some other WASM-compatible utilities for hashing bytes and converting embedded cover arts.
+
 Encoding to Opus uses [unsafe-libopus](https://github.com/DCNick3/unsafe-libopus)
 and [this patch](https://github.com/DCNick3/opus-rs/tree/unsafe-libopus)
 (actually [my fork](https://github.com/hazelmeow/opus-rs/tree/unsafe-libopus))
 for [opus-rs](https://github.com/SpaceManiac/opus-rs).
-Then we glue that together with [Symphonia](https://github.com/pdeljanov/Symphonia) for pure Rust audio decoding,
+Then we glue that together with [Symphonia](https://github.com/pdeljanov/Symphonia) for audio decoding,
 [Rubato](https://github.com/HEnquist/rubato) for resampling,
 and [ogg](https://github.com/RustAudio/ogg).
 You can see this in `transcoder/`.
