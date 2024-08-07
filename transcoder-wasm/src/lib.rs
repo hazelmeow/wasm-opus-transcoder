@@ -1,4 +1,4 @@
-use transcoder::{TranscodeOptions, TranscodeOutput};
+use transcoder::{Art, TranscodeOptions, TranscodeOutput};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -119,6 +119,10 @@ impl TranscoderWasm {
         };
 
         console_log!("finished transcoding");
+    }
+
+    pub fn process_art(&self, media_type: &str, bytes: Vec<u8>) -> Result<Art, String> {
+        transcoder::process_art(media_type, bytes).map_err(|e| e.to_string())
     }
 }
 

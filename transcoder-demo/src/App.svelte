@@ -92,7 +92,8 @@
 
 	{#if metadata}
 		<div class="metadata">
-			{#if metadata.art}
+			<!-- removed from demo for now since api changed -->
+			<!-- {#if metadata.art}
 				{@const blob = new Blob([metadata.art.data_2048], {
 					type: "image/jpeg",
 				})}
@@ -107,7 +108,7 @@
 				</div>
 			{:else}
 				<div class="image empty">(no art)</div>
-			{/if}
+			{/if} -->
 
 			<div class="details">
 				<div>

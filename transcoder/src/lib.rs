@@ -10,13 +10,14 @@ use symphonia::core::{
     codecs::DecoderOptions,
     formats::{FormatOptions, SeekMode, SeekTo},
     io::MediaSourceStream,
-    meta::{MetadataOptions, MetadataRevision, StandardTagKey, Visual},
+    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
     probe::{Hint, ProbeResult},
 };
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+/// Hash bytes with SHA256 and format the result as a hex string.
 pub fn hash_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -64,7 +65,7 @@ pub struct TranscodeOutput {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
     pub data: Vec<u8>,
     pub metadata: Metadata,
-    pub art: Option<TrackArt>,
+    pub visuals: Vec<ArtOriginal>,
     pub audio_hash: String,
 }
 
@@ -130,7 +131,7 @@ pub fn transcode(
     )?;
     decoder.reset();
 
-    let (metadata, art) = read_metadata(spec, &mut probe_result);
+    let (metadata, visuals) = read_metadata(spec, &mut probe_result);
 
     // read packets
     let mut source = vec![Vec::new(); spec.channels.count()];
@@ -192,20 +193,9 @@ pub fn transcode(
     Ok(TranscodeOutput {
         data,
         metadata,
-        art,
+        visuals,
         audio_hash,
     })
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TrackArt {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
-    pub data_512: Vec<u8>,
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
-    pub data_2048: Vec<u8>,
-    pub hash: String,
 }
 
 #[derive(Debug, Clone)]
@@ -221,7 +211,7 @@ pub struct Metadata {
     pub album_artist: Option<String>,
 }
 
-fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> (Metadata, Option<TrackArt>) {
+fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> (Metadata, Vec<ArtOriginal>) {
     let num_frames = probe_result
         .format
         .default_track()
@@ -239,7 +229,7 @@ fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> (Metadata,
         album_artist: None,
     };
 
-    let mut art = None;
+    let mut visuals = Vec::new();
 
     if let Some(rev) = get_metadata_revision(probe_result) {
         let tags = rev.tags();
@@ -266,17 +256,17 @@ fn read_metadata(spec: SignalSpec, probe_result: &mut ProbeResult) -> (Metadata,
             }
         }
 
-        let visuals = rev.visuals();
-
-        // just use the first visual found
-        if let Some(v) = visuals.first() {
-            if let Some(a) = track_art_from_visual(v) {
-                art = Some(a);
-            }
+        for visual in rev.visuals() {
+            let hash = hash_bytes(&visual.data);
+            visuals.push(ArtOriginal {
+                hash,
+                media_type: visual.media_type.clone(),
+                data: visual.data.clone().into(),
+            });
         }
     }
 
-    (md, art)
+    (md, visuals)
 }
 
 fn get_metadata_revision(probe_result: &mut ProbeResult) -> Option<MetadataRevision> {
@@ -290,45 +280,6 @@ fn get_metadata_revision(probe_result: &mut ProbeResult) -> Option<MetadataRevis
         .and_then(|mut m| m.skip_to_latest().cloned())
     {
         return Some(rev);
-    }
-
-    None
-}
-
-fn track_art_from_visual(visual: &Visual) -> Option<TrackArt> {
-    if matches!(
-        visual.media_type.as_str(),
-        "image/png" | "image/jpg" | "image/jpeg"
-    ) {
-        let reader = image::io::Reader::new(Cursor::new(&visual.data))
-            .with_guessed_format()
-            .expect("cursor io never fails");
-
-        if let Ok(image) = reader.decode() {
-            let resized_512 = image.resize(512, 512, image::imageops::FilterType::Nearest);
-            let mut data_512: Vec<u8> = vec![];
-            let mut encoder_512 =
-                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut data_512, 90);
-            encoder_512.encode_image(&resized_512).unwrap();
-
-            let resized_2048 = image.resize(2048, 2048, image::imageops::FilterType::Nearest);
-            let mut data_2048: Vec<u8> = vec![];
-            let mut encoder_2048 =
-                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut data_2048, 95);
-            encoder_2048.encode_image(&resized_2048).unwrap();
-
-            // compute hash of input
-            let hash = hash_bytes(&visual.data);
-
-            return Some(TrackArt {
-                data_512,
-                data_2048,
-                hash,
-            });
-        }
-    } else {
-        // TODO: don't just println
-        println!("unhandled media_type for visual: {}", visual.media_type);
     }
 
     None
@@ -591,4 +542,74 @@ fn encode(
 
 fn round_progress(p: f32) -> u8 {
     (p * 100.0).trunc() as u8
+}
+
+#[derive(Debug, Error)]
+pub enum ArtError {
+    #[error("unsupported format: {0}")]
+    MediaType(String),
+    #[error("decoding failed: {0}")]
+    Decode(String),
+    #[error("encoding failed: {0}")]
+    Encode(String),
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ArtOriginal {
+    pub hash: String,
+    pub media_type: String,
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Art {
+    pub hash: String,
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    pub data_512: Vec<u8>,
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    pub data_2048: Vec<u8>,
+}
+
+pub fn process_art(media_type: &str, bytes: Vec<u8>) -> Result<Art, Box<dyn Error>> {
+    // for bundle size, we only support png and jpg visuals
+    if matches!(media_type, "image/png" | "image/jpg" | "image/jpeg") {
+        let reader = image::io::Reader::new(Cursor::new(&bytes))
+            .with_guessed_format()
+            .expect("cursor io never fails");
+
+        let image = reader
+            .decode()
+            .map_err(|e| ArtError::Decode(e.to_string()))?;
+
+        let resized_512 = image.resize(512, 512, image::imageops::FilterType::Nearest);
+        let mut data_512: Vec<u8> = vec![];
+        let mut encoder_512 = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut data_512, 90);
+        encoder_512
+            .encode_image(&resized_512)
+            .map_err(|e| ArtError::Encode(e.to_string()))?;
+
+        let resized_2048 = image.resize(2048, 2048, image::imageops::FilterType::Nearest);
+        let mut data_2048: Vec<u8> = vec![];
+        let mut encoder_2048 =
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut data_2048, 95);
+        encoder_2048
+            .encode_image(&resized_2048)
+            .map_err(|e| ArtError::Encode(e.to_string()))?;
+
+        // compute hash of input
+        let hash = hash_bytes(&bytes);
+
+        Ok(Art {
+            hash,
+            data_512,
+            data_2048,
+        })
+    } else {
+        Err(ArtError::MediaType(media_type.to_owned()).into())
+    }
 }
